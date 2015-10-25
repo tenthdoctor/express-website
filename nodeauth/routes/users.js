@@ -1,5 +1,8 @@
 var express = require('express');
 var router = express.Router();
+var passport = require('passport');
+var LocalStrategy = require('passport-local').Strategy;
+var User = require('../models/user');
 
 /* GET users listing. */
 router.get('/', function(req, res, next) {
@@ -28,8 +31,8 @@ router.post('/register', function(req, res, next){
   var username = req.body.username;
   var password = req.body.password;
   var password2 = req.body.password2;
-  console.log(req.body);
-  console.log(req.files);
+ // console.log(req.body);
+ // console.log(req.files);
 
   /*
   // Check for image field
@@ -56,7 +59,7 @@ router.post('/register', function(req, res, next){
 
 
   // Check for errors
-  var errors = req.validationErrors;
+  var errors = req.validationErrors();
 
   if(errors) {
     res.render('register', {
@@ -88,6 +91,50 @@ router.post('/register', function(req, res, next){
     res.redirect('/');
   }
 
+});
+
+passport.serializeUser(function(user, done){
+  done(null, user.id);
+});
+
+passport.deserializeUser(function(id, done){
+  User.getUserById(id, function(err, user){
+    done(err, user);
+  });
+})
+
+passport.use(new LocalStrategy(
+    function(username, password, done){
+      User.getUserByUsername(username, function(err, user){
+        if(err) throw err;
+        if(!user){
+          console.log('Unknown User');
+          return done(null, false, {message: 'UnKnown User'});
+        }
+
+        User.comparePassword(password, user.password, function(err, isMatch){
+          if(err) throw err;
+          if(isMatch) {
+            return done(null,user);
+          } else {
+            console.log('Invalid Password');
+            return done(null, false, {message: 'Invalid Password'});
+          }
+        });
+      });
+    }
+));
+
+router.post('/login', passport.authenticate('local', {failureRedirect: '/users/login', failureFlash: 'Invalid username of password'}), function(req, res){
+  console.log('Authentication Successful');
+  req.flash('success', 'You are logged in!');
+  res.redirect('/');
+});
+
+router.get('/logout', function(req, res){
+  req.logout();
+  req.flash('success', 'You have logged out!');
+  res.redirect('/users/login');
 });
 
 
